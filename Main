@@ -1,0 +1,245 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_NAME 50
+
+typedef struct Node {
+    char name[MAX_NAME];
+    int isFile;
+    struct Node *parent;
+    struct Node *child;
+    struct Node *sibling;
+} Node;
+
+// Forward declaration
+void freeTree(Node *root);
+
+// Create a new node
+Node* createNode(char name[], int isFile) {
+    Node *newNode = (Node*)malloc(sizeof(Node));
+    if (!newNode) {
+        printf("Memory allocation failed!\n");
+        exit(1);
+    }
+    strncpy(newNode->name, name, MAX_NAME - 1);
+    newNode->name[MAX_NAME - 1] = '\0';
+    newNode->isFile = isFile;
+    newNode->parent = NULL;
+    newNode->child = NULL;
+    newNode->sibling = NULL;
+    return newNode;
+}
+
+// Add child to parent
+void addChild(Node *parent, Node *newNode) {
+    newNode->parent = parent;
+    if (parent->child == NULL) {
+        parent->child = newNode;
+    } else {
+        Node *temp = parent->child;
+        while (temp->sibling != NULL) {
+            temp = temp->sibling;
+        }
+        temp->sibling = newNode;
+    }
+}
+
+// Check if name exists in current directory
+int exists(Node *parent, char name[]) {
+    Node *temp = parent->child;
+    while (temp != NULL) {
+        if (strcmp(temp->name, name) == 0) {
+            return 1;
+        }
+        temp = temp->sibling;
+    }
+    return 0;
+}
+
+// mkdir
+void mkdirSim(Node *current, char name[]) {
+    if (exists(current, name)) {
+        printf("Directory or file already exists!\n");
+        return;
+    }
+    Node *dir = createNode(name, 0);
+    addChild(current, dir);
+    printf("Directory '%s' created successfully.\n", name);
+}
+
+// touch
+void touchSim(Node *current, char name[]) {
+    if (exists(current, name)) {
+        printf("Directory or file already exists!\n");
+        return;
+    }
+    Node *file = createNode(name, 1);
+    addChild(current, file);
+    printf("File '%s' created successfully.\n", name);
+}
+
+// ls
+void lsSim(Node *current) {
+    if (current->child == NULL) {
+        printf("Directory is empty.\n");
+        return;
+    }
+    Node *temp = current->child;
+    while (temp != NULL) {
+        if (temp->isFile)
+            printf("[FILE] %s\n", temp->name);
+        else
+            printf("[DIR ] %s\n", temp->name);
+        temp = temp->sibling;
+    }
+}
+
+// cd
+Node* cdSim(Node *current, char name[]) {
+    if (strcmp(name, "..") == 0) {
+        if (current->parent != NULL)
+            return current->parent;
+        else {
+            printf("Already at root directory.\n");
+            return current;
+        }
+    }
+    Node *temp = current->child;
+    while (temp != NULL) {
+        if (strcmp(temp->name, name) == 0 && temp->isFile == 0) {
+            return temp;
+        }
+        temp = temp->sibling;
+    }
+    printf("Directory not found!\n");
+    return current;
+}
+
+// pwd
+void pwdSim(Node *current) {
+    if (current == NULL) return;
+    if (current->parent != NULL) {
+        pwdSim(current->parent);
+    }
+    if (strcmp(current->name, "root") == 0)
+        printf("/");
+    else
+        printf("%s/", current->name);
+}
+
+// tree
+void treeTraversal(Node *root, int level) {
+    if (root == NULL) return;
+    for (int i = 0; i < level; i++)
+        printf("|   ");
+    if (root->isFile)
+        printf("|-- [FILE] %s\n", root->name);
+    else
+        printf("|-- [DIR ] %s\n", root->name);
+    treeTraversal(root->child, level + 1);
+    treeTraversal(root->sibling, level);
+}
+
+// rm (remove file or directory)
+void rmSim(Node *current, char name[]) {
+    Node *prev = NULL;
+    Node *temp = current->child;
+
+    while (temp != NULL) {
+        if (strcmp(temp->name, name) == 0) {
+            if (prev == NULL) {
+                current->child = temp->sibling;
+            } else {
+                prev->sibling = temp->sibling;
+            }
+            freeTree(temp);
+            printf("'%s' removed successfully.\n", name);
+            return;
+        }
+        prev = temp;
+        temp = temp->sibling;
+    }
+    printf("File or directory not found!\n");
+}
+
+// Free memory
+void freeTree(Node *root) {
+    if (root == NULL) return;
+    freeTree(root->child);
+    freeTree(root->sibling);
+    free(root);
+}
+
+// Menu
+void menu() {
+    printf("\n===== Hierarchical Directory Structure Simulation =====\n");
+    printf("1. Create Directory (mkdir)\n");
+    printf("2. Create File (touch)\n");
+    printf("3. Change Directory (cd)\n");
+    printf("4. List Contents (ls)\n");
+    printf("5. Print Working Directory (pwd)\n");
+    printf("6. Display Directory Tree\n");
+    printf("7. Remove File/Directory (rm)\n");
+    printf("8. Exit\n");
+    printf("Enter your choice: ");
+}
+
+// Main
+int main() {
+    Node *root = createNode("root", 0);
+    Node *current = root;
+    int choice;
+    char name[MAX_NAME];
+
+    while (1) {
+        menu();
+        if (scanf("%d", &choice) != 1) {
+            printf("Invalid choice! Try again.\n");
+            while (getchar() != '\n'); // clear buffer
+            continue;
+        }
+        switch (choice) {
+            case 1:
+                printf("Enter directory name: ");
+                scanf("%49s", name);
+                mkdirSim(current, name);
+                break;
+            case 2:
+                printf("Enter file name: ");
+                scanf("%49s", name);
+                touchSim(current, name);
+                break;
+            case 3:
+                printf("Enter directory name (or .. for parent): ");
+                scanf("%49s", name);
+                current = cdSim(current, name);
+                break;
+            case 4:
+                printf("\nContents of current directory:\n");
+                lsSim(current);
+                break;
+            case 5:
+                printf("Current Path: ");
+                pwdSim(current);
+                printf("\n");
+                break;
+            case 6:
+                printf("\nDirectory Tree:\n");
+                treeTraversal(root, 0);
+                break;
+            case 7:
+                printf("Enter name to remove: ");
+                scanf("%49s", name);
+                rmSim(current, name);
+                break;
+            case 8:
+                freeTree(root);
+                printf("Exiting program...\n");
+                return 0;
+            default:
+                printf("Invalid choice! Try again.\n");
+        }
+    }
+    return 0;
+}
